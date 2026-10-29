@@ -17,6 +17,13 @@ public sealed unsafe class SdlGamepadReader : IDisposable
     {
         // FlipFace runs in the background, so it must keep receiving input while a game has focus.
         SDL_SetHint("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1");
+        // GameInput reads pads through a Windows service, which HidHide's per-app whitelist can't let through,
+        // and it reports hashed paths. Raw input / XInput open the device in-process and report real device paths.
+        SDL_SetHint("SDL_JOYSTICK_GAMEINPUT", "0");
+        SDL_SetHint("SDL_JOYSTICK_RAWINPUT", "1");
+        // SDL otherwise installs its own Ctrl+C handler, which swallows the signal before .NET sees it,
+        // so the host never gets to unhide the controller on exit.
+        SDL_SetHint("SDL_NO_SIGNAL_HANDLERS", "1");
         if (!SDL_Init(SDL_InitFlags.SDL_INIT_GAMEPAD))
             throw new InvalidOperationException($"SDL_Init failed: {SDL_GetError()}");
     }

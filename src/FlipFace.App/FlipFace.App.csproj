@@ -5,6 +5,7 @@
     <ProjectReference Include="..\FlipFace.Input\FlipFace.Input.csproj" />
     <ProjectReference Include="..\FlipFace.Output\FlipFace.Output.csproj" />
     <ProjectReference Include="..\FlipFace.Setup\FlipFace.Setup.csproj" />
+    <ProjectReference Include="..\FlipFace.Runtime\FlipFace.Runtime.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlipFace.Core\FlipFace.Core.csproj" />
+    <ProjectReference Include="..\FlipFace.Input\FlipFace.Input.csproj" />
+    <ProjectReference Include="..\FlipFace.Output\FlipFace.Output.csproj" />
+    <ProjectReference Include="..\FlipFace.Setup\FlipFace.Setup.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
