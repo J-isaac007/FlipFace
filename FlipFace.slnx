@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FlipFace.App/FlipFace.App.csproj" />
+    <Project Path="src/FlipFace.Core/FlipFace.Core.csproj" />
+    <Project Path="src/FlipFace.Input/FlipFace.Input.csproj" />
+    <Project Path="src/FlipFace.Output/FlipFace.Output.csproj" />
+    <Project Path="src/FlipFace.Setup/FlipFace.Setup.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FlipFace.Core.Tests/FlipFace.Core.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/FlipFace.Probe/FlipFace.Probe.csproj" />
+  </Folder>
+</Solution>
