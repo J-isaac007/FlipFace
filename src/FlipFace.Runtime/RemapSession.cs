@@ -46,6 +46,29 @@ public sealed class RemapSession(Mapping mapping, Action<string> log)
     /// <summary>The latest state, replaced whenever anything changes. Cheap to read from a UI timer.</summary>
     public SessionSnapshot Snapshot => Volatile.Read(ref _snapshot);
 
+    /// <summary>
+    /// Raised (on the session thread) when <see cref="Run"/> finds devices an earlier run left hidden
+    /// and makes them visible again.
+    /// </summary>
+    public event Action<IReadOnlyList<string>>? LeftoversRestored;
+
+    /// <summary>
+    /// Last-chance cleanup for a process that is about to die: unhides whatever FlipFace hid.
+    /// Never throws. Prefer cancelling <see cref="Run"/>, which also unplugs the virtual pad.
+    /// </summary>
+    public static void TryEmergencyRestore()
+    {
+        try
+        {
+            if (HidHide.TryFind() is { } hidHide)
+                new HiddenDeviceLedger(hidHide).RestoreAll();
+        }
+        catch
+        {
+            // Nothing more we can do; the next start repairs it.
+        }
+    }
+
     /// <summary>Runs until <paramref name="cancel"/> fires, then unhides the pad. Blocks the calling thread.</summary>
     /// <exception cref="CannotStartException"/>
     public void Run(CancellationToken cancel)
@@ -55,14 +78,22 @@ public sealed class RemapSession(Mapping mapping, Action<string> log)
         if (!firstInstance)
             throw new CannotStartException("FlipFace is already running. Close the other copy (check the tray) and try again.");
 
-        using var output = ViGEmOutput.TryConnect()
-            ?? throw new CannotStartException("ViGEmBus isn't installed. Install it from https://github.com/nefarius/ViGEmBus/releases and try again.");
         var hidHide = HidHide.TryFind()
-            ?? throw new CannotStartException("HidHide isn't installed. Install it from https://github.com/nefarius/HidHide/releases, reboot, and try again.");
+            ?? throw new CannotStartException($"HidHide isn't installed. Install it from {SetupCheck.HidHideDownload}, restart your PC, and try again.");
         var ledger = new HiddenDeviceLedger(hidHide);
 
-        foreach (var path in ledger.RestoreAll())
-            _log($"Unhid {path}, left hidden by a previous run that didn't exit cleanly.");
+        // Undo a previous run that died with the pad hidden before anything else can fail.
+        var leftovers = ledger.RestoreAll();
+        if (leftovers.Count > 0)
+        {
+            foreach (var path in leftovers)
+                _log($"Unhid {path}, left hidden by a previous run that didn't exit cleanly.");
+            LeftoversRestored?.Invoke(leftovers);
+        }
+
+        using var output = ViGEmOutput.TryConnect()
+            ?? throw new CannotStartException($"ViGEmBus isn't installed. Install it from {SetupCheck.ViGEmBusDownload} and try again.");
+        hidHide.RemoveMissingApps();
         hidHide.RegisterApp(Environment.ProcessPath!);
         hidHide.CloakOn();
 

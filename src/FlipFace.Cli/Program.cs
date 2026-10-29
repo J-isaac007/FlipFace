@@ -3,6 +3,7 @@
 //   --profile "<name>"          use another profile
 //   --profiles                  list profiles and where they're saved
 //   --new-profile "<name>"      save a copy of "Match labels" under a new name, ready to edit
+//   --restore                   make a controller FlipFace left hidden visible to games again
 using System.Runtime.InteropServices;
 using FlipFace.Core;
 using FlipFace.Runtime;
@@ -31,11 +32,16 @@ switch (args)
         Console.WriteLine($"Edit it, then run with --profile \"{newName}\".");
         return 0;
 
+    case ["--restore"]:
+        RemapSession.TryEmergencyRestore();
+        Console.WriteLine("Any controller FlipFace had hidden is visible to games again.");
+        return 0;
+
     case [] or ["--profile", _]:
         break;
 
     default:
-        Console.Error.WriteLine("Usage: FlipFace.Cli [--profile \"<name>\" | --profiles | --new-profile \"<name>\"]");
+        Console.Error.WriteLine("Usage: FlipFace.Cli [--profile \"<name>\" | --profiles | --new-profile \"<name>\" | --restore]");
         return 1;
 }
 
@@ -84,6 +90,13 @@ catch (CannotStartException e)
 {
     Console.Error.WriteLine(e.Message);
     return 2;
+}
+catch (Exception e)
+{
+    // Catching here matters: an unhandled exception can end the process without running the
+    // session's finally block, which is what unhides the controller.
+    Console.Error.WriteLine($"FlipFace stopped unexpectedly: {e}");
+    return 3;
 }
 finally
 {

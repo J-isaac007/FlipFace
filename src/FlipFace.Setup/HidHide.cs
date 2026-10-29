@@ -28,6 +28,9 @@ public sealed class HidHide
     /// <summary>Lets <paramref name="exePath"/> keep seeing hidden devices. HidHide remembers this across restarts.</summary>
     public void RegisterApp(string exePath) => Run("--app-reg", exePath);
 
+    /// <summary>Forgets registered apps whose files no longer exist (old builds, moved installs).</summary>
+    public void RemoveMissingApps() => Run("--app-clean");
+
     public void CloakOn() => Run("--cloak-on");
 
     public void Hide(string instancePath) => Run("--dev-hide", instancePath);

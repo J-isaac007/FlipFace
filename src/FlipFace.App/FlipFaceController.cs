@@ -27,6 +27,7 @@ public sealed class FlipFaceController : IDisposable
         {
             Enabled = Settings.RemappingEnabled,
         };
+        _session.LeftoversRestored += paths => _dispatcher.BeginInvoke(() => LeftoversRestored?.Invoke(paths));
         // ~60 Hz: fast enough for the live view, and how controller (dis)connects are noticed.
         _poll = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Normal, (_, _) => Poll(), _dispatcher);
     }
@@ -43,6 +44,9 @@ public sealed class FlipFaceController : IDisposable
     public string? StartError { get; private set; }
 
     public SessionSnapshot Snapshot => _lastSnapshot;
+
+    /// <summary>True from <see cref="Start"/> until the session ends.</summary>
+    public bool IsRunning => _thread is not null;
 
     public bool Enabled
     {
@@ -63,6 +67,9 @@ public sealed class FlipFaceController : IDisposable
     public event Action? StateChanged;
 
     public event Action<string>? Log;
+
+    /// <summary>The session found devices a crashed earlier run left hidden, and unhid them.</summary>
+    public event Action<IReadOnlyList<string>>? LeftoversRestored;
 
     public void Start()
     {

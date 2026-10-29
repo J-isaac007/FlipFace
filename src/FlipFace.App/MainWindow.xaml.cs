@@ -21,6 +21,7 @@ public partial class MainWindow : Window
     ];
 
     private readonly FlipFaceController _controller;
+    private readonly Action _retry;
     private readonly ControllerDiagram _diagram = new();
     private readonly Dictionary<Button, PadControl?> _choiceButtons = [];
     private PadState _lastPhysical;
@@ -28,10 +29,12 @@ public partial class MainWindow : Window
     // Starts true because loading the XAML already fires change events (e.g. sliders coercing to their minimum).
     private bool _refreshing = true;
 
-    public MainWindow(FlipFaceController controller)
+    /// <param name="retry">"Try again" after the session failed to start.</param>
+    public MainWindow(FlipFaceController controller, Action retry)
     {
         InitializeComponent();
         _controller = controller;
+        _retry = retry;
         Icon = Imaging.CreateBitmapSourceFromHIcon(TrayIcon.AppIcon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
 
         DiagramHost.Content = _diagram;
@@ -234,7 +237,7 @@ public partial class MainWindow : Window
 
     private void RemapToggle_Click(object sender, RoutedEventArgs e) => _controller.Enabled = RemapToggle.IsChecked == true;
 
-    private void Retry_Click(object sender, RoutedEventArgs e) => _controller.Start();
+    private void Retry_Click(object sender, RoutedEventArgs e) => _retry();
 
     private void StartupToggle_Click(object sender, RoutedEventArgs e) => StartWithWindows.IsEnabled = StartupToggle.IsChecked == true;
 

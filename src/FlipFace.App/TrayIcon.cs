@@ -16,7 +16,7 @@ public sealed class TrayIcon : IDisposable
     private readonly ToolStripMenuItem _profiles;
     private readonly ToolStripMenuItem _startWithWindows;
 
-    public TrayIcon(FlipFaceController controller, Action open, Action exit)
+    public TrayIcon(FlipFaceController controller, Action open, Action openSetup, Action exit)
     {
         _controller = controller;
         _remapping = new ToolStripMenuItem("Remapping on", null, (_, _) => controller.Enabled = !controller.Enabled);
@@ -31,6 +31,7 @@ public sealed class TrayIcon : IDisposable
         menu.Items.Add(_profiles);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(_startWithWindows);
+        menu.Items.Add(new ToolStripMenuItem("Check setup…", null, (_, _) => openSetup()));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Exit", null, (_, _) => exit()));
         menu.Opening += (_, _) => RefreshMenu();
