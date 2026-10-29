@@ -11,9 +11,9 @@ public sealed class SetupMissingException(string message) : Exception(message);
 
 /// <summary>
 /// The remap loop: reads the physical pad, hides it from games, and replays it through a virtual
-/// Xbox 360 pad with <paramref name="map"/> applied. Handles one physical pad at a time.
+/// Xbox 360 pad with <paramref name="mapping"/> applied. Handles one physical pad at a time.
 /// </summary>
-public sealed class RemapSession(ButtonMap map, Action<string> log)
+public sealed class RemapSession(Mapping mapping, Action<string> log)
 {
     public void Run(CancellationToken cancel)
     {
@@ -31,7 +31,7 @@ public sealed class RemapSession(ButtonMap map, Action<string> log)
         using var reader = new SdlGamepadReader();
         // Windows sleeps in ~15 ms steps by default; 1 ms keeps input latency at a millisecond or two.
         timeBeginPeriod(1);
-        var loop = new Loop(map, log, output, hidHide, ledger);
+        var loop = new Loop(mapping, log, output, hidHide, ledger);
         try
         {
             var events = new List<GamepadEvent>();
@@ -52,7 +52,7 @@ public sealed class RemapSession(ButtonMap map, Action<string> log)
         }
     }
 
-    private sealed class Loop(ButtonMap map, Action<string> log, ViGEmOutput output, HidHide hidHide, HiddenDeviceLedger ledger)
+    private sealed class Loop(Mapping mapping, Action<string> log, ViGEmOutput output, HidHide hidHide, HiddenDeviceLedger ledger)
     {
         private uint? _sourceId;
         private IVirtualPad? _virtualPad;
@@ -84,7 +84,7 @@ public sealed class RemapSession(ButtonMap map, Action<string> log)
         {
             if (_virtualPad is null)
                 return;
-            var mapped = RemapEngine.Apply(_input, map);
+            var mapped = mapping.Apply(_input);
             if (mapped == _lastSent)
                 return;
             _virtualPad.Send(mapped);
