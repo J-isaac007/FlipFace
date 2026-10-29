@@ -1,12 +1,112 @@
 ﻿<Window x:Class="FlipFace.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:FlipFace.App"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        Title="FlipFace" Width="980" Height="640" MinWidth="760" MinHeight="520"
+        Background="{StaticResource PageBrush}" Foreground="{StaticResource TextBrush}"
+        FontFamily="Segoe UI" FontSize="13" WindowStartupLocation="CenterScreen">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
 
+        <!-- Status and the on/off switch -->
+        <DockPanel Grid.Row="0" Margin="0,0,0,12">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="RetryButton" Content="Try again" Visibility="Collapsed" Click="Retry_Click" />
+                <CheckBox x:Name="StartupToggle" Content="Start with Windows" VerticalAlignment="Center" Margin="0,0,20,0"
+                          Click="StartupToggle_Click" />
+                <CheckBox x:Name="RemapToggle" Content="Remapping on" VerticalAlignment="Center" FontWeight="SemiBold"
+                          Click="RemapToggle_Click" />
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Text="FlipFace" FontSize="22" FontWeight="Bold" />
+                <TextBlock x:Name="StatusText" Style="{StaticResource Muted}" />
+            </StackPanel>
+        </DockPanel>
+
+        <!-- Profile bar -->
+        <Border Grid.Row="1" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,0,0,12">
+            <DockPanel>
+                <TextBlock Text="Profile" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,10,0" />
+                <ComboBox x:Name="ProfileBox" Width="220" VerticalAlignment="Center" SelectionChanged="ProfileBox_SelectionChanged" />
+                <TextBlock x:Name="UnsavedText" Text="Unsaved changes" Foreground="{StaticResource AccentBrush}"
+                           VerticalAlignment="Center" Margin="10,0" FontStyle="Italic" Visibility="Collapsed" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="SaveButton" Content="Save" Click="Save_Click" />
+                    <Button Content="Save as…" Click="SaveAs_Click" />
+                    <Button x:Name="RevertButton" Content="Undo changes" Click="Revert_Click" />
+                    <Button x:Name="DeleteButton" Content="Delete" Click="Delete_Click" Margin="0" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="300" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,12,0">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Muted}" HorizontalAlignment="Center" Margin="0,8,0,0"
+                               Text="Big letters are what's printed on your controller. Small text is what games receive." />
+                    <ContentControl x:Name="DiagramHost" />
+                </DockPanel>
+            </Border>
+
+            <!-- Editor for the selected control -->
+            <Border Grid.Column="1" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="14">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock x:Name="SelectedTitle" FontSize="16" FontWeight="Bold" />
+                        <TextBlock x:Name="SelectedHint" Style="{StaticResource Muted}" Margin="0,2,0,12" />
+
+                        <StackPanel x:Name="BindingPanel">
+                            <TextBlock Text="Sends" Style="{StaticResource Heading}" />
+                            <WrapPanel x:Name="Choices" Margin="0,0,0,12" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="StickPanel">
+                            <TextBlock x:Name="StickHeading" Style="{StaticResource Heading}" />
+                            <DockPanel>
+                                <TextBlock x:Name="DeadzoneValue" DockPanel.Dock="Right" Width="40" TextAlignment="Right" />
+                                <TextBlock Text="Deadzone" />
+                            </DockPanel>
+                            <Slider x:Name="DeadzoneSlider" Minimum="0" Maximum="0.5" SmallChange="0.01" LargeChange="0.05"
+                                    IsSnapToTickEnabled="True" TickFrequency="0.01" ValueChanged="DeadzoneSlider_ValueChanged" />
+                            <TextBlock Style="{StaticResource Muted}" FontSize="11" Margin="0,0,0,6"
+                                       Text="Movement this close to the center counts as no movement. Raise it if the stick drifts." />
+                            <CheckBox x:Name="InvertXBox" Content="Invert left/right" Click="Invert_Click" Margin="0,2" />
+                            <CheckBox x:Name="InvertYBox" Content="Invert up/down" Click="Invert_Click" Margin="0,2,0,12" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="TriggerPanel">
+                            <TextBlock Text="Trigger as a button" Style="{StaticResource Heading}" />
+                            <DockPanel>
+                                <TextBlock x:Name="ThresholdValue" DockPanel.Dock="Right" Width="40" TextAlignment="Right" />
+                                <TextBlock Text="Press point" />
+                            </DockPanel>
+                            <Slider x:Name="ThresholdSlider" Minimum="0.05" Maximum="1" SmallChange="0.05" LargeChange="0.1"
+                                    IsSnapToTickEnabled="True" TickFrequency="0.05" ValueChanged="ThresholdSlider_ValueChanged" />
+                            <TextBlock Style="{StaticResource Muted}" FontSize="11" Margin="0,0,0,12"
+                                       Text="How far a trigger must be pulled to count as a press, when it sends a button. Applies to both triggers." />
+                        </StackPanel>
+
+                        <Separator Margin="0,4,0,10" />
+                        <CheckBox x:Name="SwapSticksBox" Content="Swap left and right sticks" Click="SwapSticks_Click" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <Expander Grid.Row="3" Header="Activity" Margin="0,10,0,0">
+            <ListBox x:Name="LogList" Height="110" FontFamily="Consolas" FontSize="11" Margin="0,6,0,0" />
+        </Expander>
     </Grid>
 </Window>

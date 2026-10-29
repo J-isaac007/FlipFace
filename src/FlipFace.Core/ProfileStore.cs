@@ -78,6 +78,35 @@ public sealed class ProfileStore(string directory)
     public Profile? Find(string name) =>
         List(out _).FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>The file a saved profile lives in, or null when it only exists as a built-in preset (or not at all).</summary>
+    public string? FileFor(string name)
+    {
+        if (!System.IO.Directory.Exists(directory))
+            return null;
+        foreach (var file in System.IO.Directory.EnumerateFiles(directory, "*.json"))
+        {
+            try
+            {
+                if (string.Equals(Deserialize(File.ReadAllText(file), file).Name, name, StringComparison.OrdinalIgnoreCase))
+                    return file;
+            }
+            catch (Exception e) when (e is InvalidDataException or IOException)
+            {
+                // Unreadable files belong to no profile.
+            }
+        }
+        return null;
+    }
+
+    /// <summary>Deletes a saved profile. A preset it replaced comes back. Returns false if nothing was saved under that name.</summary>
+    public bool Delete(string name)
+    {
+        if (FileFor(name) is not { } file)
+            return false;
+        File.Delete(file);
+        return true;
+    }
+
     /// <summary>Writes <paramref name="profile"/> to its file, replacing any earlier save. Returns the file path.</summary>
     public string Save(Profile profile)
     {

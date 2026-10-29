@@ -6,32 +6,70 @@ using FlipFace.Setup;
 
 namespace FlipFace.Runtime;
 
-/// <summary>A driver FlipFace needs is missing. The message says which one and what to do.</summary>
-public sealed class SetupMissingException(string message) : Exception(message);
+/// <summary>FlipFace can't start: a driver is missing or another copy is running. The message says what to do.</summary>
+public sealed class CannotStartException(string message) : Exception(message);
+
+/// <param name="Controller">The physical pad being read, or null when none is connected.</param>
+/// <param name="Remapping">True while the physical pad is hidden and games see the virtual one.</param>
+/// <param name="Physical">What the physical pad is doing.</param>
+/// <param name="Output">What the virtual pad reports (or would report, while remapping is off).</param>
+public sealed record SessionSnapshot(GamepadInfo? Controller, bool Remapping, PadState Physical, PadState Output)
+{
+    public static SessionSnapshot Idle { get; } = new(null, false, default, default);
+}
 
 /// <summary>
 /// The remap loop: reads the physical pad, hides it from games, and replays it through a virtual
-/// Xbox 360 pad with <paramref name="mapping"/> applied. Handles one physical pad at a time.
+/// Xbox 360 pad with <see cref="Mapping"/> applied. Handles one physical pad at a time.
+/// <see cref="Mapping"/> and <see cref="Enabled"/> may be changed from any thread while <see cref="Run"/> is going.
 /// </summary>
 public sealed class RemapSession(Mapping mapping, Action<string> log)
 {
+    private readonly Action<string> _log = log;
+    private Mapping _mapping = mapping;
+    private volatile bool _enabled = true;
+    private SessionSnapshot _snapshot = SessionSnapshot.Idle;
+
+    public Mapping Mapping
+    {
+        get => Volatile.Read(ref _mapping);
+        set => Volatile.Write(ref _mapping, value);
+    }
+
+    /// <summary>When false the physical pad stays visible to games and no virtual pad exists, but it is still read for the live view.</summary>
+    public bool Enabled
+    {
+        get => _enabled;
+        set => _enabled = value;
+    }
+
+    /// <summary>The latest state, replaced whenever anything changes. Cheap to read from a UI timer.</summary>
+    public SessionSnapshot Snapshot => Volatile.Read(ref _snapshot);
+
+    /// <summary>Runs until <paramref name="cancel"/> fires, then unhides the pad. Blocks the calling thread.</summary>
+    /// <exception cref="CannotStartException"/>
     public void Run(CancellationToken cancel)
     {
+        // Two copies would fight over the same pad and each create a virtual one.
+        using var instance = new Mutex(false, @"Local\FlipFace.RemapSession", out var firstInstance);
+        if (!firstInstance)
+            throw new CannotStartException("FlipFace is already running. Close the other copy (check the tray) and try again.");
+
         using var output = ViGEmOutput.TryConnect()
-            ?? throw new SetupMissingException("ViGEmBus isn't installed. Install it from https://github.com/nefarius/ViGEmBus/releases and try again.");
+            ?? throw new CannotStartException("ViGEmBus isn't installed. Install it from https://github.com/nefarius/ViGEmBus/releases and try again.");
         var hidHide = HidHide.TryFind()
-            ?? throw new SetupMissingException("HidHide isn't installed. Install it from https://github.com/nefarius/HidHide/releases, reboot, and try again.");
+            ?? throw new CannotStartException("HidHide isn't installed. Install it from https://github.com/nefarius/HidHide/releases, reboot, and try again.");
         var ledger = new HiddenDeviceLedger(hidHide);
 
         foreach (var path in ledger.RestoreAll())
-            log($"Unhid {path}, left hidden by a previous run that didn't exit cleanly.");
+            _log($"Unhid {path}, left hidden by a previous run that didn't exit cleanly.");
         hidHide.RegisterApp(Environment.ProcessPath!);
         hidHide.CloakOn();
 
         using var reader = new SdlGamepadReader();
         // Windows sleeps in ~15 ms steps by default; 1 ms keeps input latency at a millisecond or two.
         timeBeginPeriod(1);
-        var loop = new Loop(mapping, log, output, hidHide, ledger);
+        var loop = new Loop(this, output, hidHide, ledger);
         try
         {
             var events = new List<GamepadEvent>();
@@ -41,20 +79,22 @@ public sealed class RemapSession(Mapping mapping, Action<string> log)
                 reader.Poll(events);
                 foreach (var ev in events)
                     loop.Handle(ev);
-                loop.Flush();
+                loop.Tick();
                 Thread.Sleep(1);
             }
         }
         finally
         {
-            loop.Stop();
+            loop.Disengage();
+            Volatile.Write(ref _snapshot, SessionSnapshot.Idle);
             timeEndPeriod(1);
         }
     }
 
-    private sealed class Loop(Mapping mapping, Action<string> log, ViGEmOutput output, HidHide hidHide, HiddenDeviceLedger ledger)
+    private sealed class Loop(RemapSession session, ViGEmOutput output, HidHide hidHide, HiddenDeviceLedger ledger)
     {
-        private uint? _sourceId;
+        private GamepadInfo? _source;
+        private string[] _hidePaths = [];
         private IVirtualPad? _virtualPad;
         private PadState _input;
         private PadState _lastSent;
@@ -66,37 +106,58 @@ public sealed class RemapSession(Mapping mapping, Action<string> log)
                 case GamepadConnected c:
                     OnConnected(c.Info);
                     break;
-                case GamepadDisconnected d when d.Id == _sourceId:
-                    log("Controller unplugged. Virtual pad removed; waiting for it to come back.");
-                    Stop();
+                case GamepadDisconnected d when d.Id == _source?.Id:
+                    session._log("Controller unplugged. Waiting for it to come back.");
+                    Disengage();
+                    _source = null;
                     break;
-                case ButtonChanged b when b.Id == _sourceId:
+                case ButtonChanged b when b.Id == _source?.Id:
                     _input.SetButton(b.Button, b.Down);
                     break;
-                case AxisChanged a when a.Id == _sourceId:
+                case AxisChanged a when a.Id == _source?.Id:
                     _input[a.Axis] = a.Value;
                     break;
             }
         }
 
-        /// <summary>Sends the remapped state to the virtual pad if anything changed since the last send.</summary>
-        public void Flush()
+        /// <summary>Applies on/off changes, sends the remapped state if it changed, and publishes a snapshot.</summary>
+        public void Tick()
         {
-            if (_virtualPad is null)
-                return;
-            var mapped = mapping.Apply(_input);
-            if (mapped == _lastSent)
-                return;
-            _virtualPad.Send(mapped);
-            _lastSent = mapped;
+            var wanted = session.Enabled && _source is not null;
+            if (wanted && _virtualPad is null)
+                Engage();
+            else if (!wanted && _virtualPad is not null)
+                Disengage();
+
+            var mapped = session.Mapping.Apply(_input);
+            if (_virtualPad is not null && mapped != _lastSent)
+            {
+                _virtualPad.Send(mapped);
+                _lastSent = mapped;
+            }
+
+            var last = session.Snapshot;
+            var remapping = _virtualPad is not null;
+            if (last.Controller != _source || last.Remapping != remapping || last.Physical != _input || last.Output != mapped)
+                Volatile.Write(ref session._snapshot, new SessionSnapshot(_source, remapping, _input, mapped));
+        }
+
+        /// <summary>Hides the physical pad and plugs in the virtual one.</summary>
+        private void Engage()
+        {
+            ledger.Hide(_hidePaths);
+            _lastSent = default;
+            _virtualPad = output.CreateXbox360();
+            session._log($"Remapping \"{_source!.Name}\". Hid from games: {string.Join(", ", _hidePaths)}");
         }
 
         /// <summary>Unplugs the virtual pad and makes the physical one visible to games again.</summary>
-        public void Stop()
+        public void Disengage()
         {
+            if (_virtualPad is not null)
+                session._log("Remapping off. Your controller is visible to games again.");
             _virtualPad?.Dispose();
             _virtualPad = null;
-            _sourceId = null;
             ledger.RestoreAll();
         }
 
@@ -105,34 +166,27 @@ public sealed class RemapSession(Mapping mapping, Action<string> log)
             var instancePath = DeviceTree.InstancePathFromInterfacePath(info.Path);
             if (instancePath is null)
             {
-                log($"Skipping \"{info.Name}\": SDL gave no device path ({info.Path ?? "none"}), so it can't be hidden from games.");
+                session._log($"Skipping \"{info.Name}\": SDL gave no device path ({info.Path ?? "none"}), so it can't be hidden from games.");
                 return;
             }
             if (DeviceTree.IsOnViGEmBus(instancePath))
-            {
-                log($"Ignoring virtual pad {instancePath}.");
                 return;
-            }
-            if (_sourceId is not null)
+            if (_source is not null)
             {
-                log($"Already remapping a controller; ignoring \"{info.Name}\" ({instancePath}).");
+                session._log($"Already using a controller; ignoring \"{info.Name}\" ({instancePath}).");
                 return;
             }
 
             // Hide the HID device and its root device: games read Xbox pads through either one (raw input/DirectInput vs XInput).
             var device = hidHide.GamingDevices()
                 .FirstOrDefault(d => string.Equals(d.DeviceInstancePath, instancePath, StringComparison.OrdinalIgnoreCase));
-            string[] toHide = device is null
-                ? [instancePath]
-                : [device.DeviceInstancePath, device.BaseContainerDeviceInstancePath];
-            ledger.Hide(toHide.Distinct(StringComparer.OrdinalIgnoreCase));
-
-            _sourceId = info.Id;
+            _hidePaths = (device is null
+                    ? [instancePath]
+                    : new[] { device.DeviceInstancePath, device.BaseContainerDeviceInstancePath })
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            _source = info;
             _input = default;
-            _lastSent = default;
-            _virtualPad = output.CreateXbox360();
-            log($"Remapping \"{info.Name}\" ({instancePath}) to a virtual Xbox 360 controller.");
-            log($"Hid from games: {string.Join(", ", toHide)}");
+            session._log($"Found \"{info.Name}\" ({instancePath}).");
         }
     }
 

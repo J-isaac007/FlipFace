@@ -14,6 +14,15 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- Only for the tray icon (NotifyIcon); everything else is WPF. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>FlipFace</AssemblyName>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Keep WinForms types out of scope so names like Button and Application mean the WPF ones. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
 
 </Project>

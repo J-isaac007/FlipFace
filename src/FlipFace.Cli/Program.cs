@@ -1,4 +1,4 @@
-﻿// FlipFace headless: remaps the first physical controller to a virtual Xbox 360 pad until you press Ctrl+C.
+// FlipFace headless: remaps the first physical controller to a virtual Xbox 360 pad until you press Ctrl+C.
 //   (no args)                   use the "Match labels" profile
 //   --profile "<name>"          use another profile
 //   --profiles                  list profiles and where they're saved
@@ -80,7 +80,7 @@ try
     Console.WriteLine("Stopped. Your controller is visible to games again.");
     return 0;
 }
-catch (SetupMissingException e)
+catch (CannotStartException e)
 {
     Console.Error.WriteLine(e.Message);
     return 2;

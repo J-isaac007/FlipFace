@@ -59,6 +59,23 @@ public sealed class ProfileStoreTests : IDisposable
     }
 
     [Fact]
+    public void Deleting_a_saved_preset_override_brings_the_preset_back()
+    {
+        var store = new ProfileStore(_directory);
+        store.Save(Presets.MatchLabels with { SwapSticks = true });
+        store.Save(new Profile { Name = "Mine" });
+
+        Assert.NotNull(store.FileFor("match LABELS"));
+        Assert.Null(store.FileFor("Default"));
+        Assert.True(store.Delete("Match labels"));
+        Assert.True(store.Delete("Mine"));
+        Assert.False(store.Delete("Mine"));
+
+        Assert.False(store.Find("Match labels")!.SwapSticks);
+        Assert.Null(store.Find("Mine"));
+    }
+
+    [Fact]
     public void Saved_profile_replaces_preset_and_broken_files_are_skipped()
     {
         var store = new ProfileStore(_directory);
