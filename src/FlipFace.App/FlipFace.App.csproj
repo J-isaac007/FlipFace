@@ -17,6 +17,11 @@
     <!-- Only for the tray icon (NotifyIcon); everything else is WPF. -->
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>FlipFace</AssemblyName>
+    <ApplicationIcon>FlipFace.ico</ApplicationIcon>
+    <Version>0.1.0</Version>
+    <Product>FlipFace</Product>
+    <Description>Remaps a controller's buttons and shows games a virtual Xbox 360 controller.</Description>
+    <Copyright>Copyright (c) 2026 J-isaac007. MIT License.</Copyright>
   </PropertyGroup>
 
   <ItemGroup>
